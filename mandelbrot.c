@@ -21,7 +21,7 @@ double get_time()
 int main(int argc, char **argv)
 {
     FILE *fp;
-    int m, n, size, i, j, k, px, py, iteration, max_iteration, *grid;
+    int m, n, size, i, j, k, px, py, iteration, max_iteration, **grid;
     double x0, y0, x, y, xmin, xmax, ymin, ymax, xtemp, ttot, tstart, tend, tmin;
     char filename[] = "mandelbrot.dat";
 
@@ -46,7 +46,11 @@ int main(int argc, char **argv)
     ymin = -1;
     ymax = 1;
 
-    grid = (int *)malloc(size * sizeof(int));
+    grid = (int **)malloc(n * sizeof(int *));
+    for (i = 0; i < n; i++)
+    {
+        grid[i] = (int *)malloc(m * sizeof(int));
+    }
 
     for (k = 0; k < SEQ_TRIALS; k++)
     {
@@ -54,23 +58,26 @@ int main(int argc, char **argv)
 
         tstart = get_time();
 
-        for (i = 0; i < size; i++)
+        for (i = 0; i < n; i++)
         {
-            px = i % m;
-            py = i / m;
-            x0 = (double)px / (m - 1) * (xmax - xmin) + xmin;
-            y0 = (double)py / (n - 1) * (ymax - ymin) + ymin;
-            x = 0;
-            y = 0;
-            iteration = 0;
-            while (x * x + y * y < 2 * 2 && iteration < max_iteration)
+            for (j = 0; j < m; j++)
             {
-                xtemp = x * x - y * y + x0;
-                y = 2 * x * y + y0;
-                x = xtemp;
-                iteration++;
+                px = j;
+                py = i;
+                x0 = (double)px / (m - 1) * (xmax - xmin) + xmin;
+                y0 = (double)py / (n - 1) * (ymax - ymin) + ymin;
+                x = 0;
+                y = 0;
+                iteration = 0;
+                while (x * x + y * y < 2 * 2 && iteration < max_iteration)
+                {
+                    xtemp = x * x - y * y + x0;
+                    y = 2 * x * y + y0;
+                    x = xtemp;
+                    iteration++;
+                }
+                grid[i][j] = iteration;
             }
-            grid[i] = iteration;
         }
 
         tend = get_time();
@@ -90,12 +97,17 @@ int main(int argc, char **argv)
     {
         for (j = 0; j < m; j++)
         {
-            fprintf(fp, "%i ", grid[n * i + j]);
+            fprintf(fp, "%i ", grid[i][j]);
         }
         fprintf(fp, "\n");
     }
 
     fclose(fp);
+
+    for (i = 0; i < n; i++)
+    {
+        free(grid[i]);
+    }
     free(grid);
 
     return 0;
