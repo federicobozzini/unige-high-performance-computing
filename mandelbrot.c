@@ -8,6 +8,8 @@
 // OUTPUT: PERFORMANCE IN TIME SPENT
 
 #define SEQ_TRIALS 3
+#define PAR_TRIALS 20
+#define OMP_CHUNK_SIZE 100
 #define MAXTIME 5000000000 /* 5 seconds */
 
 double get_time()
@@ -21,8 +23,8 @@ double get_time()
 int main(int argc, char **argv)
 {
     FILE *fp;
-    int m, n, size, i, j, k, px, py, iteration, max_iteration, **grid;
-    double x0, y0, x, y, xmin, xmax, ymin, ymax, xtemp, ttot, tstart, tend, tmin;
+    int m, n, size, i, j, k, iteration, max_iteration, **grid;
+    double x0, y0, x, y, xmin, xmax, ymin, ymax, xtemp, ttot, tstart, tend, tminseq, tminpar;
     char filename[] = "mandelbrot.dat";
 
     if (argc < 3)
@@ -52,9 +54,10 @@ int main(int argc, char **argv)
         grid[i] = (int *)malloc(m * sizeof(int));
     }
 
+    // SEQUENTIAL
     for (k = 0; k < SEQ_TRIALS; k++)
     {
-        tmin = 10e10;
+        tminseq = 10e10;
 
         tstart = get_time();
 
@@ -62,10 +65,8 @@ int main(int argc, char **argv)
         {
             for (j = 0; j < m; j++)
             {
-                px = j;
-                py = i;
-                x0 = (double)px / (m - 1) * (xmax - xmin) + xmin;
-                y0 = (double)py / (n - 1) * (ymax - ymin) + ymin;
+                x0 = (double)j / (m - 1) * (xmax - xmin) + xmin;
+                y0 = (double)i / (n - 1) * (ymax - ymin) + ymin;
                 x = 0;
                 y = 0;
                 iteration = 0;
@@ -83,13 +84,56 @@ int main(int argc, char **argv)
         tend = get_time();
 
         ttot = tend - tstart;
-        printf("%i, time=%.2lf ms.\n", k, ttot / 10e6);
+        //printf("%i, time=%.2lf ms.\n", k, ttot / 10e6);
 
-        if (ttot < tmin)
-            tmin = ttot;
+        if (ttot < tminseq)
+            tminseq = ttot;
     }
 
-    printf("time=%.2lf ms.\n", tmin / 10e6);
+    printf("sequential time=%.2lf ms.\n", tminseq / 10e6);
+
+    //PARALLEL
+    for (k = 0; k < PAR_TRIALS; k++)
+    {
+        tminpar = 10e10;
+
+        tstart = get_time();
+
+#pragma omp parallel for private(i, j, x0, y0, x, y, iteration, xtemp) schedule(static, OMP_CHUNK_SIZE) collapse(2) default(shared)
+        for (i = 0; i < n; i++)
+        {
+            for (j = 0; j < m; j++)
+            {
+                x0 = (double)j / (m - 1) * (xmax - xmin) + xmin;
+                y0 = (double)i / (n - 1) * (ymax - ymin) + ymin;
+                x = 0;
+                y = 0;
+                iteration = 0;
+                while (x * x + y * y < 2 * 2 && iteration < max_iteration)
+                {
+                    xtemp = x * x - y * y + x0;
+                    y = 2 * x * y + y0;
+                    x = xtemp;
+                    iteration++;
+                }
+                grid[i][j] = iteration;
+            }
+        }
+
+        tend = get_time();
+
+        ttot = tend - tstart;
+        //printf("%i, time=%.2lf ms.\n", k, ttot / 10e6);
+
+        if (ttot < tminpar)
+            tminpar = ttot;
+    }
+
+    printf("parallel time=%.2lf ms.\n", tminpar / 10e6);
+
+    printf("speedup=%.1lf\n", tminseq / tminpar);
+
+    
 
     fp = fopen(filename, "w");
 
