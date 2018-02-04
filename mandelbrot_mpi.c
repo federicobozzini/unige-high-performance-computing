@@ -4,20 +4,15 @@
 
 #include <omp.h>
 #include "mpi.h"
-#include <assert.h>
 #include <string.h>
 
 // USAGE: mandelbrot <m> <n>
-// OUTPUT: PERFORMANCE IN TIME SPENT
+// OUTPUT: MULTIPLE ROWS IN THE FORMAT <task_size> <time_spent_in_ms>
 
-#define OMP_CHUNK_SIZE 100
-#define MPI_TRIALS 10
+#define MPI_TRIALS 2
 #define ISTR_SIZE 2
-#define MAX_DATA_SIZE 100
 #define BUFFER_SIZE (ISTR_SIZE + MAX_DATA_SIZE)
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
-
-#define MAXTIME 5000000000 /* 5 seconds */
 
 double get_time()
 {
@@ -30,12 +25,15 @@ double get_time()
 int main(int argc, char **argv)
 {
     FILE *fp;
-    int m, n, size, i, j, k, t, iteration, max_iteration, task_size = 100, jMin, jMax;
+    int m, n, size, i, j, k, t, iteration, max_iteration, task_size, ti, jMin, jMax;
     double x0, y0, x, y, xmin, xmax, ymin, ymax, xtemp, ttot, tstart, tend, tminseq, tminpar, tminmpi;
-    char filename[] = "mandelbrot.dat";
+    char filename[] = "mandelbrot_mpi.dat";
     MPI_Status status;
-    int *buffer = (int *)malloc(BUFFER_SIZE * sizeof(int));
+    int *buffer;
     int me, numinstances, init_task_num;
+    int max_task_size_length = 10, tssize;
+    int *task_sizes;
+    int task_params[10] = {1, 2, 5, 10, 20, 50, 100, 200, 500, 1000};
 
     if (argc < 3)
     {
@@ -52,6 +50,15 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    tssize = 0;
+    task_sizes = (int *)malloc(max_task_size_length * sizeof(int));
+    for (ti = 0; ti < max_task_size_length; ti++)
+    {
+        if (m/task_params[ti] == 0)
+            break;
+        tssize++;
+        task_sizes[ti] = m/task_params[ti];
+    }
     max_iteration = 100;
     xmin = -2.5;
     xmax = 1;
@@ -68,29 +75,61 @@ int main(int argc, char **argv)
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    for (k = 0; k < MPI_TRIALS; k++)
+    for (ti = 0; ti < tssize; ti++)
     {
-        if (me == 0)
+        task_size = task_sizes[ti];
+        buffer = (int *)malloc((ISTR_SIZE + task_size) * sizeof(int));
+        for (k = 0; k < MPI_TRIALS; k++)
         {
-
-            int **grid = (int **)malloc(n * sizeof(int *));
-            for (i = 0; i < n; i++)
+            if (me == 0)
             {
-                grid[i] = (int *)malloc(m * sizeof(int));
-            }
-            int other, tasks_sent = 0;
-
-            i = 0;
-            j = 0;
-
-            tminmpi = 10e10;
-
-            tstart = get_time();
-
-            for (other = 1; other < numinstances; other++)
-            {
-                for (t = 0; t < init_task_num; t++)
+                int **grid = (int **)malloc(n * sizeof(int *));
+                for (i = 0; i < n; i++)
                 {
+                    grid[i] = (int *)malloc(m * sizeof(int));
+                }
+                int other, tasks_sent = 0;
+
+                i = 0;
+                j = 0;
+
+                tminmpi = 10e10;
+
+                tstart = get_time();
+
+                for (other = 1; other < numinstances; other++)
+                {
+                    for (t = 0; t < init_task_num; t++)
+                    {
+                        int task_params[3] = {i, j};
+                        j += task_size;
+                        if (j >= m)
+                        {
+                            j = 0;
+                            i++;
+                        }
+                        if (i == n)
+                        {
+                            other = numinstances;
+                            break;
+                        }
+                        memcpy(buffer, task_params, ISTR_SIZE * sizeof(int));
+                        MPI_Send(buffer, ISTR_SIZE, MPI_INT, other, 0, MPI_COMM_WORLD);
+                        tasks_sent++;
+                    }
+                }
+
+                while (tasks_sent)
+                {
+                    MPI_Recv(buffer, ISTR_SIZE + task_size, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+                    tasks_sent--;
+                    int r = buffer[0];
+                    jMin = buffer[1];
+                    jMax = MIN(jMin + task_size, m);
+                    int dataSize = jMax - jMin;
+                    memcpy(grid[r] + jMin, buffer + ISTR_SIZE, dataSize * sizeof(int));
+                    if (i == n)
+                        continue;
                     int task_params[3] = {i, j};
                     j += task_size;
                     if (j >= m)
@@ -98,120 +137,92 @@ int main(int argc, char **argv)
                         j = 0;
                         i++;
                     }
-                    if (i == n)
-                    {
-                        other = numinstances;
-                        break;
-                    }
                     memcpy(buffer, task_params, ISTR_SIZE * sizeof(int));
-                    MPI_Send(buffer, ISTR_SIZE, MPI_INT, other, 0, MPI_COMM_WORLD);
+                    MPI_Send(buffer, ISTR_SIZE, MPI_INT, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
                     tasks_sent++;
                 }
-            }
 
-            while (tasks_sent)
-            {
-                MPI_Recv(buffer, BUFFER_SIZE, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
-                tasks_sent--;
-                int r = buffer[0];
-                jMin = buffer[1];
-                jMax = MIN(jMin + task_size, m);
-                int dataSize = jMax - jMin;
-                memcpy(grid[r] + jMin, buffer + ISTR_SIZE, dataSize * sizeof(int));
-                if (i == n)
-                    continue;
-                int task_params[3] = {i, j};
-                j += task_size;
-                if (j >= m)
+                for (other = 1; other < numinstances; other++)
                 {
-                    j = 0;
-                    i++;
+                    int finished[1] = {-1};
+                    memcpy(buffer, finished, sizeof(int));
+                    MPI_Send(buffer, ISTR_SIZE, MPI_INT, other, 0, MPI_COMM_WORLD);
                 }
-                memcpy(buffer, task_params, ISTR_SIZE * sizeof(int));
-                MPI_Send(buffer, ISTR_SIZE, MPI_INT, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
-                tasks_sent++;
-            }
 
-            for (other = 1; other < numinstances; other++)
-            {
-                int finished[1] = {-1};
-                memcpy(buffer, finished, sizeof(int));
-                MPI_Send(buffer, ISTR_SIZE, MPI_INT, other, 0, MPI_COMM_WORLD);
-            }
+                tend = get_time();
 
-            // printf("finished %i\n", me);
+                ttot = tend - tstart;
 
-            tend = get_time();
+                if (ttot < tminmpi)
+                    tminmpi = ttot;
 
-            ttot = tend - tstart;
-            // printf("%i, time=%.2lf ms.\n", k, ttot / 10e6);
+                if (k == MPI_TRIALS - 1)
+                {
 
-            if (ttot < tminmpi)
-                tminmpi = ttot;
+                    printf("%i %.2lf\n", task_size, tminmpi / 10e6);
 
-            if (k == MPI_TRIALS - 1)
-            {
+                    if (ti == tssize - 1)
+                    {
+                        fp = fopen(filename, "w");
 
-                printf("openMP+MPI time=%.2lf ms.\n", tminmpi / 10e6);
+                        for (i = 0; i < n; i++)
+                        {
+                            for (j = 0; j < m; j++)
+                            {
+                                fprintf(fp, "%i ", grid[i][j]);
+                            }
+                            fprintf(fp, "\n");
+                        }
 
-                fp = fopen(filename, "w");
+                        fclose(fp);
+                    }
+                }
 
                 for (i = 0; i < n; i++)
                 {
-                    for (j = 0; j < m; j++)
-                    {
-                        fprintf(fp, "%i ", grid[i][j]);
-                    }
-                    fprintf(fp, "\n");
+                    free(grid[i]);
                 }
-
-                fclose(fp);
+                free(grid);
             }
 
-            for (i = 0; i < n; i++)
+            else
             {
-                free(grid[i]);
-            }
-            free(grid);
-        }
-
-        else
-        {
-            int *tmp = (int *)malloc(task_size * sizeof(int));
-            while (1)
-            {
-                MPI_Recv(buffer, ISTR_SIZE, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                i = buffer[0];
-                if (i < 0)
-                    break;
-                jMin = buffer[1];
-                jMax = MIN(jMin + task_size, m);
-
-                //#pragma omp parallel for private(i, j, x0, y0, x, y, iteration, xtemp) schedule(static, OMP_CHUNK_SIZE) default(shared)
-                for (j = jMin; j < jMax; j++)
+                int *tmp = (int *)malloc(task_size * sizeof(int));
+                while (1)
                 {
-                    x0 = (double)j / (m - 1) * (xmax - xmin) + xmin;
-                    y0 = (double)i / (n - 1) * (ymax - ymin) + ymin;
-                    x = 0;
-                    y = 0;
-                    iteration = 0;
-                    while (x * x + y * y < 2 * 2 && iteration < max_iteration)
-                    {
-                        xtemp = x * x - y * y + x0;
-                        y = 2 * x * y + y0;
-                        x = xtemp;
-                        iteration++;
-                    }
-                    tmp[j - jMin] = iteration;
-                }
-                int dataSize = jMax - jMin;
+                    MPI_Recv(buffer, ISTR_SIZE, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    i = buffer[0];
+                    if (i < 0)
+                        break;
+                    jMin = buffer[1];
+                    jMax = MIN(jMin + task_size, m);
 
-                memcpy(buffer + ISTR_SIZE, tmp, dataSize * sizeof(int));
-                MPI_Send(buffer, ISTR_SIZE + dataSize, MPI_INT, 0, 0, MPI_COMM_WORLD);
+                    for (j = jMin; j < jMax; j++)
+                    {
+                        x0 = (double)j / (m - 1) * (xmax - xmin) + xmin;
+                        y0 = (double)i / (n - 1) * (ymax - ymin) + ymin;
+                        x = 0;
+                        y = 0;
+                        iteration = 0;
+                        while (x * x + y * y < 2 * 2 && iteration < max_iteration)
+                        {
+                            xtemp = x * x - y * y + x0;
+                            y = 2 * x * y + y0;
+                            x = xtemp;
+                            iteration++;
+                        }
+                        tmp[j - jMin] = iteration;
+                    }
+                    int dataSize = jMax - jMin;
+
+                    memcpy(buffer + ISTR_SIZE, tmp, dataSize * sizeof(int));
+                    MPI_Send(buffer, ISTR_SIZE + dataSize, MPI_INT, 0, 0, MPI_COMM_WORLD);
+                }
+
+                free(tmp);
             }
-            // printf("finished %i\n", me);
-            free(tmp);
         }
+        free(buffer);
     }
 
     MPI_Finalize();
