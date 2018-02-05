@@ -10,7 +10,7 @@
 // USAGE: mandelbrot <cols> <rows>
 // OUTPUT: MULTIPLE ROWS IN THE FORMAT <task_size> <time_spent_in_ms>
 
-#define TRIALS 3
+#define TRIALS 10
 #define ISTR_SIZE 2
 #define BUFFER_SIZE (ISTR_SIZE + MAX_DATA_SIZE)
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
@@ -41,18 +41,19 @@ int main(int argc, char **argv)
     {
         if (me == 0)
         {
-            printf("Usage: mandelbrot cols rows\n");
+            printf("Usage: mandelbrot_mpi cols rows\n");
         }
         return 1;
     }
     cols = atoi(argv[1]);
     rows = atoi(argv[2]);
+    int ti_num = 10;
 
-    if (rows < 2 || cols < 2)
+    if (rows < 100 || cols < 100)
     {
         if (me == 0)
         {
-            printf("Error: cols and rows must be > 2\n");
+            printf("Error: cols and rows must be > %i\n", 100);
         }
         return 1;
     }
@@ -69,8 +70,10 @@ int main(int argc, char **argv)
 
     t_step = 20;
 
-    int max_ti = (int) sqrt(rows * cols / init_task_num / (numinstances - 1)) / t_step * t_step;
-    for (ti = t_step; ti <= max_ti; ti += t_step)
+    int max_ti = (int) sqrt(rows * cols / (numinstances - 1));
+    int ti_step = max_ti / ti_num;
+    max_ti = ti_num * ti_step;
+    for (ti = ti_step; ti <= max_ti; ti += ti_step)
     {
         task_size = ti * ti;
         buffer = (int *)malloc((ISTR_SIZE + task_size) * sizeof(int));
@@ -105,14 +108,14 @@ int main(int argc, char **argv)
                         {
                             j = 0;
                         }
-                        int task_params[3] = {i, j};
+                        buffer[0] = i;
+                        buffer[1] = j;
                         j += ti;
                         if (j >= rows)
                         {
                             j = rows;
                             i += ti;
                         }
-                        memcpy(buffer, task_params, ISTR_SIZE * sizeof(int));
                         MPI_Send(buffer, ISTR_SIZE, MPI_INT, other, 0, MPI_COMM_WORLD);
                         tasks_sent++;
                     }
@@ -138,22 +141,21 @@ int main(int argc, char **argv)
                     {
                         j = 0;
                     }
-                    int task_params[3] = {i, j};
+                    buffer[0] = i;
+                    buffer[1] = j;
                     j += ti;
                     if (j >= rows)
                     {
                         j = rows;
                         i += ti;
                     }
-                    memcpy(buffer, task_params, ISTR_SIZE * sizeof(int));
                     MPI_Send(buffer, ISTR_SIZE, MPI_INT, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
                     tasks_sent++;
                 }
 
                 for (other = 1; other < numinstances; other++)
                 {
-                    int finished[1] = {-1};
-                    memcpy(buffer, finished, sizeof(int));
+                    buffer[0] = -1;
                     MPI_Send(buffer, ISTR_SIZE, MPI_INT, other, 0, MPI_COMM_WORLD);
                 }
 
@@ -207,6 +209,8 @@ int main(int argc, char **argv)
                     rowsToCopy = iMax - iMin;
                     chunkSize = jMax - jMin;
 
+                    int index = ISTR_SIZE;
+
                     for (i = iMin; i < iMax; i++)
                     {
                         for (j = jMin; j < jMax; j++)
@@ -223,8 +227,8 @@ int main(int argc, char **argv)
                                 x = xtemp;
                                 iteration++;
                             }
-                            int index = (i - iMin) * chunkSize + (j - jMin) + ISTR_SIZE;
                             buffer[index] = iteration;
+                            index++;
                         }
                     }
                     MPI_Send(buffer, ISTR_SIZE + task_size, MPI_INT, 0, 0, MPI_COMM_WORLD);
