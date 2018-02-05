@@ -1,3 +1,6 @@
 #!/bin/bash
 
-gcc mandelbrot_seq.c -fopenmp -O3 -o mandelbrot_seq && ./mandelbrot_seq $1 $2
+ROWS=${1:-1111}
+COLS=${2:-2222}
+
+gcc mandelbrot_seq.c -fopenmp -O3 -o mandelbrot_seq && ./mandelbrot_seq $ROWS $COLS
