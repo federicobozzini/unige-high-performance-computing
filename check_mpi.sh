@@ -2,8 +2,8 @@
 
 rm mandelbrot_seq.dat
 rm mandelbrot_mpi.dat
-ROWS=${1:-111}
-COLS=${1:-222}
+ROWS=${1:-1111}
+COLS=${2:-2222}
 ./run_seq.sh $ROWS $COLS > /dev/null
 ./run_mpi.sh $ROWS $COLS > /dev/null
 if ! cmp mandelbrot_seq.dat mandelbrot_mpi.dat >/dev/null 2>&1
