@@ -6,7 +6,7 @@
 #include "mpi.h"
 #include <string.h>
 
-// USAGE: mandelbrot <rows> <cols>
+// USAGE: mandelbrot <cols> <rows>
 // OUTPUT: MULTIPLE ROWS IN THE FORMAT <task_size> <time_spent_in_ms>
 
 #define MPI_TRIALS 2

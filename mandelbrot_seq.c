@@ -30,8 +30,8 @@ int main(int argc, char **argv)
         printf("Usage: mandelbrot cols rows\n");
         return 1;
     }
-    rows = atoi(argv[1]);
-    cols = atoi(argv[2]);
+    cols = atoi(argv[1]);
+    rows = atoi(argv[2]);
     size = rows * cols;
 
     if (rows < 2 || cols < 2)
