@@ -6,7 +6,7 @@
 #include "mpi.h"
 #include <string.h>
 
-// USAGE: mandelbrot <m> <n>
+// USAGE: mandelbrot <rows> <cols>
 // OUTPUT: MULTIPLE ROWS IN THE FORMAT <task_size> <time_spent_in_ms>
 
 #define MPI_TRIALS 2
@@ -25,7 +25,7 @@ double get_time()
 int main(int argc, char **argv)
 {
     FILE *fp;
-    int m, n, size, i, j, k, t, iteration, max_iteration, task_size, ti, jMin, jMax;
+    int rows, cols, i, j, k, t, iteration, max_iteration, task_size, ti, jMin, jMax;
     double x0, y0, x, y, xmin, xmax, ymin, ymax, xtemp, ttot, tstart, tend, tminseq, tminpar, tminmpi;
     char filename[] = "mandelbrot_mpi.dat";
     MPI_Status status;
@@ -37,16 +37,15 @@ int main(int argc, char **argv)
 
     if (argc < 3)
     {
-        printf("Usage: mandelbrot n m\n");
+        printf("Usage: mandelbrot cols rows\n");
         return 1;
     }
-    m = atoi(argv[1]);
-    n = atoi(argv[2]);
-    size = m * n;
+    cols = atoi(argv[1]);
+    rows = atoi(argv[2]);
 
-    if (m < 2 || n < 2)
+    if (rows < 2 || cols < 2)
     {
-        printf("Error: n and m must be > 2\n");
+        printf("Error: cols and rows must be > 2\n");
         return 1;
     }
 
@@ -54,10 +53,10 @@ int main(int argc, char **argv)
     task_sizes = (int *)malloc(max_task_size_length * sizeof(int));
     for (ti = 0; ti < max_task_size_length; ti++)
     {
-        if (m/task_params[ti] == 0)
+        if (rows / task_params[ti] == 0)
             break;
         tssize++;
-        task_sizes[ti] = m/task_params[ti];
+        task_sizes[ti] = rows / task_params[ti];
     }
     max_iteration = 100;
     xmin = -2.5;
@@ -83,10 +82,10 @@ int main(int argc, char **argv)
         {
             if (me == 0)
             {
-                int **grid = (int **)malloc(n * sizeof(int *));
-                for (i = 0; i < n; i++)
+                int **grid = (int **)malloc(cols * sizeof(int *));
+                for (i = 0; i < cols; i++)
                 {
-                    grid[i] = (int *)malloc(m * sizeof(int));
+                    grid[i] = (int *)malloc(rows * sizeof(int));
                 }
                 int other, tasks_sent = 0;
 
@@ -103,12 +102,12 @@ int main(int argc, char **argv)
                     {
                         int task_params[3] = {i, j};
                         j += task_size;
-                        if (j >= m)
+                        if (j >= rows)
                         {
                             j = 0;
                             i++;
                         }
-                        if (i == n)
+                        if (i == cols)
                         {
                             other = numinstances;
                             break;
@@ -125,14 +124,14 @@ int main(int argc, char **argv)
                     tasks_sent--;
                     int r = buffer[0];
                     jMin = buffer[1];
-                    jMax = MIN(jMin + task_size, m);
+                    jMax = MIN(jMin + task_size, rows);
                     int dataSize = jMax - jMin;
                     memcpy(grid[r] + jMin, buffer + ISTR_SIZE, dataSize * sizeof(int));
-                    if (i == n)
+                    if (i == cols)
                         continue;
                     int task_params[3] = {i, j};
                     j += task_size;
-                    if (j >= m)
+                    if (j >= rows)
                     {
                         j = 0;
                         i++;
@@ -165,9 +164,9 @@ int main(int argc, char **argv)
                     {
                         fp = fopen(filename, "w");
 
-                        for (i = 0; i < n; i++)
+                        for (i = 0; i < cols; i++)
                         {
-                            for (j = 0; j < m; j++)
+                            for (j = 0; j < rows; j++)
                             {
                                 fprintf(fp, "%i ", grid[i][j]);
                             }
@@ -178,7 +177,7 @@ int main(int argc, char **argv)
                     }
                 }
 
-                for (i = 0; i < n; i++)
+                for (i = 0; i < cols; i++)
                 {
                     free(grid[i]);
                 }
@@ -195,12 +194,12 @@ int main(int argc, char **argv)
                     if (i < 0)
                         break;
                     jMin = buffer[1];
-                    jMax = MIN(jMin + task_size, m);
+                    jMax = MIN(jMin + task_size, rows);
 
                     for (j = jMin; j < jMax; j++)
                     {
-                        x0 = (double)j / (m - 1) * (xmax - xmin) + xmin;
-                        y0 = (double)i / (n - 1) * (ymax - ymin) + ymin;
+                        x0 = (double)j / (rows - 1) * (xmax - xmin) + xmin;
+                        y0 = (double)i / (cols - 1) * (ymax - ymin) + ymin;
                         x = 0;
                         y = 0;
                         iteration = 0;
