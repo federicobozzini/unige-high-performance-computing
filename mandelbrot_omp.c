@@ -4,10 +4,10 @@
 
 #include <omp.h>
 
-// USAGE: mandelbrot <rows> <cols>
+// USAGE: mandelbrot_omp <rows> <cols>
 // OUTPUT: PERFORMANCE IN TIME SPENT
 
-#define OMP_TRIALS 2
+#define TRIALS 2
 #define OMP_CHUNK_SIZE 100
 
 double get_time()
@@ -21,8 +21,8 @@ double get_time()
 int main(int argc, char **argv)
 {
     FILE *fp;
-    int rows, cols, size, i, j, k, iteration, max_iteration, **grid;
-    double x0, y0, x, y, xmin, xmax, ymin, ymax, xtemp, ttot, tstart, tend, tminseq, tminpar;
+    int rows, cols, size, i, j, k, px, py, iteration, max_iteration, *grid;
+    double x0, y0, x, y, xmin, xmax, ymin, ymax, xtemp, ttot, tstart, tend, tmin;
     char filename[] = "mandelbrot_omp.dat";
 
     if (argc < 3)
@@ -46,48 +46,43 @@ int main(int argc, char **argv)
     ymin = -1;
     ymax = 1;
 
-    grid = (int **)malloc(cols * sizeof(int *));
-    for (i = 0; i < cols; i++)
-    {
-        grid[i] = (int *)malloc(rows * sizeof(int));
-    }
+    grid = (int *)malloc(size * sizeof(int));
 
-    for (k = 0; k < OMP_TRIALS; k++)
+    for (k = 0; k < TRIALS; k++)
     {
-        tminpar = 10e10;
+        tmin = 10e10;
 
         tstart = get_time();
 
-#pragma omp parallel for private(i, j, x0, y0, x, y, iteration, xtemp) schedule(static, OMP_CHUNK_SIZE) collapse(2) default(shared)
-        for (i = 0; i < cols; i++)
+#pragma omp parallel for private(i, px, py, x0, y0, x, y, iteration, xtemp) schedule(static, OMP_CHUNK_SIZE) default(shared)
+        for (i = 0; i < size; i++)
         {
-            for (j = 0; j < rows; j++)
+            px = i % rows;
+            py = i / rows;
+            x0 = (double)px / (rows - 1) * (xmax - xmin) + xmin;
+            y0 = (double)py / (cols - 1) * (ymax - ymin) + ymin;
+            x = 0;
+            y = 0;
+            iteration = 0;
+            while (x * x + y * y < 2 * 2 && iteration < max_iteration)
             {
-                x0 = (double)j / (rows - 1) * (xmax - xmin) + xmin;
-                y0 = (double)i / (cols - 1) * (ymax - ymin) + ymin;
-                x = 0;
-                y = 0;
-                iteration = 0;
-                while (x * x + y * y < 2 * 2 && iteration < max_iteration)
-                {
-                    xtemp = x * x - y * y + x0;
-                    y = 2 * x * y + y0;
-                    x = xtemp;
-                    iteration++;
-                }
-                grid[i][j] = iteration;
+                xtemp = x * x - y * y + x0;
+                y = 2 * x * y + y0;
+                x = xtemp;
+                iteration++;
             }
+            grid[i] = iteration;
         }
 
         tend = get_time();
 
         ttot = tend - tstart;
 
-        if (ttot < tminpar)
-            tminpar = ttot;
+        if (ttot < tmin)
+            tmin = ttot;
     }
 
-    printf("%.2lf\n", tminpar / 10e6);
+    printf("%.2lf\n", tmin / 10e6);
 
     fp = fopen(filename, "w");
 
@@ -95,17 +90,13 @@ int main(int argc, char **argv)
     {
         for (j = 0; j < rows; j++)
         {
-            fprintf(fp, "%i ", grid[i][j]);
+            fprintf(fp, "%i ", grid[rows * i + j]);
         }
         fprintf(fp, "\n");
     }
 
     fclose(fp);
 
-    for (i = 0; i < cols; i++)
-    {
-        free(grid[i]);
-    }
     free(grid);
 
     return 0;

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-// USAGE: mandelbrot_seq <rows> <cols>
+// USAGE: mandelbrot_seq_2d <rows> <cols>
 // OUTPUT: PERFORMANCE IN TIME SPENT
 
 #define TRIALS 2
@@ -18,7 +18,7 @@ double get_time()
 int main(int argc, char **argv)
 {
     FILE *fp;
-    int rows, cols, size, i, j, k, px, py, iteration, max_iteration, *grid;
+    int rows, cols, size, i, j, k, iteration, max_iteration, **grid;
     double x0, y0, x, y, xmin, xmax, ymin, ymax, xtemp, ttot, tstart, tend, tminseq, tminpar;
     char filename[] = "mandelbrot_seq.dat";
 
@@ -43,7 +43,11 @@ int main(int argc, char **argv)
     ymin = -1;
     ymax = 1;
 
-    grid = (int *)malloc(size * sizeof(int));
+    grid = (int **)malloc(cols * sizeof(int *));
+    for (i = 0; i < cols; i++)
+    {
+        grid[i] = (int *)malloc(rows * sizeof(int));
+    }
 
     for (k = 0; k < TRIALS; k++)
     {
@@ -51,23 +55,24 @@ int main(int argc, char **argv)
 
         tstart = get_time();
 
-        for (i = 0; i < size; i++)
+        for (i = 0; i < cols; i++)
         {
-            px = i % rows;
-            py = i / rows;
-            x0 = (double)px / (rows - 1) * (xmax - xmin) + xmin;
-            y0 = (double)py / (cols - 1) * (ymax - ymin) + ymin;
-            x = 0;
-            y = 0;
-            iteration = 0;
-            while (x * x + y * y < 2 * 2 && iteration < max_iteration)
+            for (j = 0; j < rows; j++)
             {
-                xtemp = x * x - y * y + x0;
-                y = 2 * x * y + y0;
-                x = xtemp;
-                iteration++;
+                x0 = (double)j / (rows - 1) * (xmax - xmin) + xmin;
+                y0 = (double)i / (cols - 1) * (ymax - ymin) + ymin;
+                x = 0;
+                y = 0;
+                iteration = 0;
+                while (x * x + y * y < 2 * 2 && iteration < max_iteration)
+                {
+                    xtemp = x * x - y * y + x0;
+                    y = 2 * x * y + y0;
+                    x = xtemp;
+                    iteration++;
+                }
+                grid[i][j] = iteration;
             }
-            grid[i] = iteration;
         }
 
         tend = get_time();
@@ -86,13 +91,17 @@ int main(int argc, char **argv)
     {
         for (j = 0; j < rows; j++)
         {
-            fprintf(fp, "%i ", grid[rows * i + j]);
+            fprintf(fp, "%i ", grid[i][j]);
         }
         fprintf(fp, "\n");
     }
 
     fclose(fp);
 
+    for (i = 0; i < cols; i++)
+    {
+        free(grid[i]);
+    }
     free(grid);
 
     return 0;
