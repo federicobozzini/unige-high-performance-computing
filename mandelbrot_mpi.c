@@ -7,13 +7,15 @@
 #include <string.h>
 #include <math.h>
 
-// USAGE: mandelbrot <cols> <rows>
+// USAGE: mandelbrot_mpi <cols> <rows>
 // OUTPUT: MULTIPLE ROWS IN THE FORMAT <task_size> <time_spent_in_ms>
 
 #define TRIALS 10
 #define ISTR_SIZE 1
 #define BUFFER_SIZE (ISTR_SIZE + MAX_DATA_SIZE)
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
+
+#define TAG_KILL 1
 
 double get_time()
 {
@@ -26,12 +28,12 @@ double get_time()
 int main(int argc, char **argv)
 {
     FILE *fp;
-    int rows, cols, i, j, px, py, k, t, iteration, max_iteration, task_size, ti, jMin, jMax, iMin, iMax;
-    double x0, y0, x, y, xmin, xmax, ymin, ymax, xtemp, ttot, tstart, tend, tminseq, tminpar, tminmpi;
+    int rows, cols, px, py, k, t, iteration, max_iteration, task_size, iMin, iMax;
+    double x0, y0, x, y, xmin, xmax, ymin, ymax, xtemp, ttot, tstart, tend, tmin;
     char filename[] = "mandelbrot_mpi.dat";
     MPI_Status status;
     int *buffer;
-    int me, numinstances, init_task_num;
+    int me, numinstances;
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &me);
@@ -48,16 +50,7 @@ int main(int argc, char **argv)
     cols = atoi(argv[1]);
     rows = atoi(argv[2]);
     int size = rows * cols;
-    int ti_num = 10;
-
-    if (rows < 100 || cols < 100)
-    {
-        if (me == 0)
-        {
-            printf("Error: cols and rows must be > %i\n", 100);
-        }
-        return 1;
-    }
+    int *grid;
 
     max_iteration = 100;
     xmin = -2.5;
@@ -65,29 +58,25 @@ int main(int argc, char **argv)
     ymin = -1;
     ymax = 1;
 
-    init_task_num = 4;
-
     MPI_Barrier(MPI_COMM_WORLD);
 
-    int max_ti = (int)sqrt(rows * cols / (numinstances - 1));
-    int ti_step = max_ti / ti_num;
-    max_ti = ti_num * ti_step;
+    int ti_step = size / 1000;
 
-    for (ti = ti_step; ti <= max_ti; ti += ti_step)
+    if (me == 0)
+        grid = (int *)malloc(size * sizeof(int));
+
+    for (task_size = ti_step; task_size < size / (numinstances - 1); task_size += ti_step)
     {
-        task_size = ti * ti;
         buffer = (int *)malloc((ISTR_SIZE + task_size) * sizeof(int));
         for (k = 0; k < TRIALS; k++)
         {
             if (me == 0)
             {
-                int *grid = (int *)malloc(size * sizeof(int));
+                int other, tasks_sent = 0, init_task_num = 2;
 
-                int other, tasks_sent = 0;
+                int task_idx = 0;
 
-                i = 0;
-
-                tminmpi = 10e10;
+                tmin = 10e10;
 
                 tstart = get_time();
 
@@ -95,14 +84,14 @@ int main(int argc, char **argv)
                 {
                     for (t = 0; t < init_task_num; t++)
                     {
-                        if (i >= size)
+                        if (task_idx >= size)
                         {
                             other = numinstances;
                             break;
                         }
-                        buffer[0] = i;
+                        buffer[0] = task_idx;
                         MPI_Send(buffer, ISTR_SIZE, MPI_INT, other, 0, MPI_COMM_WORLD);
-                        i += task_size;
+                        task_idx += task_size;
                         tasks_sent++;
                     }
                 }
@@ -113,66 +102,42 @@ int main(int argc, char **argv)
                     tasks_sent--;
                     iMin = buffer[0];
                     iMax = MIN(iMin + task_size, size);
-                    memcpy(grid+iMin, buffer+ISTR_SIZE, (iMax - iMin)* sizeof(int));
-                    if (i >= size)
+                    memcpy(grid + iMin, buffer + ISTR_SIZE, (iMax - iMin) * sizeof(int));
+                    if (task_idx >= size)
                         continue;
-                    buffer[0] = i;
-                    i += task_size;
+                    buffer[0] = task_idx;
+                    task_idx += task_size;
                     MPI_Send(buffer, ISTR_SIZE, MPI_INT, status.MPI_SOURCE, 0, MPI_COMM_WORLD);
                     tasks_sent++;
                 }
 
                 for (other = 1; other < numinstances; other++)
                 {
-                    buffer[0] = -1;
-                    MPI_Send(buffer, ISTR_SIZE, MPI_INT, other, 0, MPI_COMM_WORLD);
+                    MPI_Send(NULL, 0, MPI_INT, other, TAG_KILL, MPI_COMM_WORLD);
                 }
 
                 tend = get_time();
 
                 ttot = tend - tstart;
 
-                if (ttot < tminmpi)
-                    tminmpi = ttot;
+                if (ttot < tmin)
+                    tmin = ttot;
 
                 if (k == TRIALS - 1)
-                {
-
-                    printf("%i %.2lf\n", task_size, tminmpi / 10e6);
-
-                    if (ti == max_ti)
-                    {
-                        fp = fopen(filename, "w");
-
-                        for (i = 0; i < cols; i++)
-                        {
-                            for (j = 0; j < rows; j++)
-                            {
-                                fprintf(fp, "%i ", grid[rows * i + j]);
-                            }
-                            fprintf(fp, "\n");
-                        }
-
-                        fclose(fp);
-                    }
-                }
-                free(grid);
+                    printf("%i %.2lf\n", task_size, tmin / 10e6);
             }
 
             else
             {
                 while (1)
                 {
-                    MPI_Recv(buffer, ISTR_SIZE, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    if (buffer[0] < 0)
+                    MPI_Recv(buffer, ISTR_SIZE, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+                    if (status.MPI_TAG == TAG_KILL)
                         break;
                     iMin = buffer[0];
                     iMax = MIN(iMin + task_size, size);
 
-                    int index = ISTR_SIZE;
-
-#pragma omp parallel for private(i, px, py, x0, y0, x, y, iteration, xtemp) schedule(static) default(shared) firstprivate(index) 
-                    for (i = iMin; i < iMax; i++)
+                    for (int i = iMin; i < iMax; i++)
                     {
                         px = i % rows;
                         py = i / rows;
@@ -188,8 +153,7 @@ int main(int argc, char **argv)
                             x = xtemp;
                             iteration++;
                         }
-                        buffer[index] = iteration;
-                        index++;
+                        buffer[i - iMin + ISTR_SIZE] = iteration;
                     }
 
                     MPI_Send(buffer, ISTR_SIZE + task_size, MPI_INT, 0, 0, MPI_COMM_WORLD);
@@ -197,6 +161,23 @@ int main(int argc, char **argv)
             }
         }
         free(buffer);
+    }
+
+    if (me == 0)
+    {
+        fp = fopen(filename, "w");
+
+        for (int i = 0; i < cols; i++)
+        {
+            for (int j = 0; j < rows; j++)
+            {
+                fprintf(fp, "%i ", grid[rows * i + j]);
+            }
+            fprintf(fp, "\n");
+        }
+
+        fclose(fp);
+        free(grid);
     }
 
     MPI_Finalize();
