@@ -2,10 +2,10 @@
 #include <stdlib.h>
 #include <time.h>
 
-// USAGE: mandelbrot_seq <rows> <cols>
+// USAGE: mandelbrot_seq <rows> <cols> <task_size> <x0> <y0> <dx> <dy>
 // OUTPUT: PERFORMANCE IN TIME SPENT
 
-#define TRIALS 2
+#define TRIALS 30
 
 double get_time()
 {
@@ -18,8 +18,8 @@ double get_time()
 int main(int argc, char **argv)
 {
     FILE *fp;
-    int rows, cols, size, i, j, k, px, py, iteration, max_iteration, *grid;
-    double x0, y0, x, y, xmin, xmax, ymin, ymax, xtemp, ttot, tstart, tend, tminseq, tminpar;
+    int rows, cols, size, i, j, k, max_iteration, *grid;
+    double ttot, tstart, tend, tmin;
     char filename[] = "mandelbrot_seq.dat";
 
     if (argc < 3)
@@ -38,31 +38,37 @@ int main(int argc, char **argv)
     }
 
     max_iteration = 100;
-    xmin = -2.5;
-    xmax = 1;
-    ymin = -1;
-    ymax = 1;
+    double xmin = argc > 4 ? atof(argv[4]) : -2.5;
+    double ymin = argc > 5 ? atof(argv[5]) : -1;
+    double xmax = argc > 6 ? xmin + atof(argv[6]) : 1;
+    double ymax = argc > 7 ? ymin + atof(argv[7]) : 1;
+
+    if (xmin >= xmax || ymin >= ymax)
+    {
+        printf("Usage: mandelbrot_mpi cols rows x0=-2.5 y0=-1 dx=-1 dy=1\n");
+        return 1;
+    }
 
     grid = (int *)malloc(size * sizeof(int));
 
     for (k = 0; k < TRIALS; k++)
     {
-        tminseq = 10e10;
+        tmin = 10e10;
 
         tstart = get_time();
 
         for (i = 0; i < size; i++)
         {
-            px = i % rows;
-            py = i / rows;
-            x0 = (double)px / (rows - 1) * (xmax - xmin) + xmin;
-            y0 = (double)py / (cols - 1) * (ymax - ymin) + ymin;
-            x = 0;
-            y = 0;
-            iteration = 0;
+            int px = i % rows;
+            int py = i / rows;
+            double x0 = (double)px / (rows - 1) * (xmax - xmin) + xmin;
+            double y0 = (double)py / (cols - 1) * (ymax - ymin) + ymin;
+            double x = 0;
+            double y = 0;
+            int iteration = 0;
             while (x * x + y * y < 2 * 2 && iteration < max_iteration)
             {
-                xtemp = x * x - y * y + x0;
+                double xtemp = x * x - y * y + x0;
                 y = 2 * x * y + y0;
                 x = xtemp;
                 iteration++;
@@ -74,11 +80,11 @@ int main(int argc, char **argv)
 
         ttot = tend - tstart;
 
-        if (ttot < tminseq)
-            tminseq = ttot;
+        if (ttot < tmin)
+            tmin = ttot;
     }
 
-    printf("%.2lf\n", tminseq / 10e6);
+    printf("%.2lf\n", tmin / 10e6);
 
     fp = fopen(filename, "w");
 
