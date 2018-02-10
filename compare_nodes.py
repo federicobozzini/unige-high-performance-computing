@@ -29,8 +29,8 @@ def main():
         print "mpi workers=%i time=%.2lf speedup=%.2lf" % (workers, best_time_mpi, best_speedup)
         out.append((workers, best_speedup))
     filename_prefix = 'compare%iX%i' % (cols, rows)
-    perf_filename = filename_prefix + '.dat'
-    plot_filename = filename_prefix + '.png'
+    perf_filename = 'results/' + filename_prefix + '.dat'
+    plot_filename = 'images/' + filename_prefix + '.png'
     with open(perf_filename, 'w') as f:
         for r in out:
             f.write('%i %.2lf\n' % (r[0], r[1]))

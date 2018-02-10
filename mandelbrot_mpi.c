@@ -30,7 +30,7 @@ int main(int argc, char **argv)
     FILE *fp;
     int rows, cols, size, max_iteration, task_size, iMin, iMax, *grid;
     double ttot, tstart, tend, tmin;
-    char filename[] = "mandelbrot_mpi.dat";
+    char filename[] = "results/mandelbrot_mpi.dat";
     MPI_Status status;
     int *buffer;
     int me, numinstances;

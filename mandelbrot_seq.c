@@ -20,7 +20,7 @@ int main(int argc, char **argv)
     FILE *fp;
     int rows, cols, size, i, j, k, max_iteration, *grid;
     double ttot, tstart, tend, tmin;
-    char filename[] = "mandelbrot_seq.dat";
+    char filename[] = "results/mandelbrot_seq.dat";
 
     if (argc < 3)
     {
