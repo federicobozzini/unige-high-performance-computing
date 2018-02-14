@@ -3,7 +3,8 @@ set out "images/mandelbrot_seq.png"
 set pm3d map
 set size ratio 1
 set pm3d interpolate 0,0
-set tics out nomirror
+set xtics format " " 
+set ytics format " " 
 stats 'results/mandelbrot_seq.dat' nooutput
 N = STATS_records
 M = STATS_columns

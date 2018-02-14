@@ -10,7 +10,7 @@
 // USAGE: mandelbrot_mpi <cols> <rows> <task_size> <x0> <y0> <dx> <dy>
 // OUTPUT: <time_spent_in_ms>
 
-#define TRIALS 30
+#define TRIALS 50
 #define ISTR_SIZE 1
 #define BUFFER_SIZE (ISTR_SIZE + MAX_DATA_SIZE)
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
@@ -128,8 +128,7 @@ int main(int argc, char **argv)
 
             ttot = tend - tstart;
 
-            if (ttot < tmin)
-                tmin = ttot;
+            tmin = MIN(tmin, ttot);
         }
         else
         {
@@ -172,6 +171,8 @@ int main(int argc, char **argv)
         printf("%.2lf\n", tmin / 10e6);
 
         fp = fopen(filename, "w");
+
+        fprintf(fp, "%.2lf %.2lf %.2lf %.2lf\n", xmin, ymin, xmax - xmin, ymax - ymin);
 
         for (int i = 0; i < cols; i++)
         {

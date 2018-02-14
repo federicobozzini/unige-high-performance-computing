@@ -5,7 +5,7 @@
 // USAGE: mandelbrot_seq <rows> <cols> <task_size> <x0> <y0> <dx> <dy>
 // OUTPUT: PERFORMANCE IN TIME SPENT
 
-#define TRIALS 30
+#define TRIALS 50
 
 double get_time()
 {
@@ -38,10 +38,10 @@ int main(int argc, char **argv)
     }
 
     max_iteration = 100;
-    double xmin = argc > 4 ? atof(argv[4]) : -2.5;
-    double ymin = argc > 5 ? atof(argv[5]) : -1;
-    double xmax = argc > 6 ? xmin + atof(argv[6]) : 1;
-    double ymax = argc > 7 ? ymin + atof(argv[7]) : 1;
+    double xmin = argc > 3 ? atof(argv[3]) : -2.5;
+    double ymin = argc > 4 ? atof(argv[4]) : -1;
+    double xmax = argc > 5 ? xmin + atof(argv[5]) : 1;
+    double ymax = argc > 6 ? ymin + atof(argv[6]) : 1;
 
     if (xmin >= xmax || ymin >= ymax)
     {
@@ -87,6 +87,8 @@ int main(int argc, char **argv)
     printf("%.2lf\n", tmin / 10e6);
 
     fp = fopen(filename, "w");
+
+    fprintf(fp, "%.2lf %.2lf %.2lf %.2lf\n", xmin, ymin, xmax - xmin, ymax - ymin);
 
     for (i = 0; i < cols; i++)
     {
