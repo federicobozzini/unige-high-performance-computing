@@ -1,2 +1,6 @@
 /.ssync-files.json
 /.vscode
+results/*
+!results/.gitkeep
+images/*
+!images/.gitkeep
