@@ -140,6 +140,7 @@ int main(int argc, char **argv)
                 iMin = buffer[0];
                 iMax = MIN(iMin + task_size, size);
 
+#pragma omp parallel for schedule(static)
                 for (int i = iMin; i < iMax; i++)
                 {
                     int px = i % rows;
