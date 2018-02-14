@@ -12,7 +12,7 @@ def main():
     task_size_min = int(sys.argv[3]) if numargs > 2 else size / 1000
     task_size_max = int(sys.argv[4]) if numargs > 3 else size / 50
     task_size_step = int(sys.argv[5]) if numargs > 4 else size / 100
-    nodes_max = 20
+    nodes_max = sum(1 for line in open('macchine')) + 4
     time_seq = float(subprocess.check_output(
         ['./run.sh', str(cols), str(rows)]))
     print "seq time=%.2lf" % time_seq
