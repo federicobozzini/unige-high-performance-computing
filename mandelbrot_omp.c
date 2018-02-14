@@ -4,7 +4,7 @@
 
 #include <omp.h>
 
-// USAGE: mandelbrot_omp <rows> <cols> <task_size> <x0> <y0> <dx> <dy>
+// USAGE: mandelbrot_omp <rows> <cols> <x0> <y0> <dx> <dy>
 // OUTPUT: PERFORMANCE IN TIME SPENT
 
 #define TRIALS 2

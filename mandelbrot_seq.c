@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-// USAGE: mandelbrot_seq <rows> <cols> <task_size> <x0> <y0> <dx> <dy>
+// USAGE: mandelbrot_seq <rows> <cols> <x0> <y0> <dx> <dy>
 // OUTPUT: PERFORMANCE IN TIME SPENT
 
 #define TRIALS 50
