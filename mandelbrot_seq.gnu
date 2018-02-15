@@ -8,5 +8,5 @@ set ytics format " "
 stats 'results/mandelbrot_seq.dat' nooutput
 N = STATS_records
 M = STATS_columns
-splot 'results/mandelbrot_seq.dat' matrix using ($1/(N-1)*3.5-2.5):($2/(M-1)*2-1):3 notitle
+splot 'results/mandelbrot_seq.dat' skip 1 matrix using ($1/(N-1)*3.5-2.5):($2/(M-1)*2-1):3 notitle
 set out
