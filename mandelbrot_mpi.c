@@ -80,18 +80,21 @@ int main(int argc, char **argv)
     {
         if (me == 0)
         {
-            int tasks_sent = 0, init_task_num = 4;
+            int tasks_sent = 0, init_task_num = 2;
 
+            //index of the tasks sent to the workers, it will be increased after every sent message
             int task_idx = 0;
 
             tmin = 10e10;
 
             tstart = get_time();
 
+            //The initial number of tasks (init_task_num) is sent to all the workers
             for (int other = 1; other < numinstances; other++)
             {
                 for (int t = 0; t < init_task_num; t++)
                 {
+                    //Checks if no more tasks should be sent
                     if (task_idx >= size)
                     {
                         other = numinstances;
@@ -104,13 +107,17 @@ int main(int argc, char **argv)
                 }
             }
 
+            //While the workers are still executing tasks, the coordinator should keep on listening
             while (tasks_sent)
             {
                 MPI_Recv(buffer, ISTR_SIZE + task_size, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
                 tasks_sent--;
                 iMin = buffer[0];
+                //The results received may be smaller than task_size if the task received is the last one
                 iMax = MIN(iMin + task_size, size);
+                //The result of a task is copied to the final grid
                 memcpy(grid + iMin, buffer + ISTR_SIZE, (iMax - iMin) * sizeof(int));
+                //Checks again is no more tasks should be sent
                 if (task_idx >= size)
                     continue;
                 buffer[0] = task_idx;
@@ -119,6 +126,7 @@ int main(int argc, char **argv)
                 tasks_sent++;
             }
 
+            //No more tasks to complete, a final message is sent to stop the workers
             for (int other = 1; other < numinstances; other++)
             {
                 MPI_Send(NULL, 0, MPI_INT, other, TAG_KILL, MPI_COMM_WORLD);
@@ -135,11 +143,14 @@ int main(int argc, char **argv)
             while (1)
             {
                 MPI_Recv(buffer, ISTR_SIZE, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+                //Checks if it's the final message
                 if (status.MPI_TAG == TAG_KILL)
                     break;
                 iMin = buffer[0];
+                //Checks if it is the edge case at the end of the grid
                 iMax = MIN(iMin + task_size, size);
 
+                //Mandelbrot calculations, parallelized with openMP
 #pragma omp parallel for schedule(static)
                 for (int i = iMin; i < iMax; i++)
                 {
